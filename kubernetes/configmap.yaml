@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: git-repo-config
+  namespace: whydah
+data:
+  # Change this to your own git config repository
+  GIT_REPO_URL: https://github.com/ccollicutt/python-service-config-examples.git
