@@ -43,7 +43,7 @@ def config_bp(config_manager):
             abort(400, "Invalid value. Expected a non-empty string")
 
         if len(new_value) > 1024:
-            abort(400, f"Maximum length of value is 1024 characters")
+            abort(400, "Maximum length of value is 1024 characters")
 
         success = config_manager.update_config(
             service_name, setting_name, property_name, new_value
