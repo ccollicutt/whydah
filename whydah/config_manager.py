@@ -30,26 +30,32 @@ class ConfigManager:
 
     def set_clone_url(self):
         if self.git_api_token:
-            self.clone_url = self.repo_url.replace("https://", f"https://{self.git_api_token}@")
+            self.clone_url = self.repo_url.replace(
+                "https://", f"https://{self.git_api_token}@"
+            )
         else:
             self.clone_url = self.repo_url
 
     def test_github_access(self):
-
         # test with token
         if self.git_api_token:
             headers = {"Authorization": f"Bearer {self.git_api_token}"}
             response = requests.get("https://api.github.com/user", headers=headers)
-            return response.status_code == 200  
+            return response.status_code == 200
         # test without token
         else:
             response = requests.get(self.clone_url)
             return response.status_code == 200
-        
+
     def clone_repository(self):
-        logging.debug(f"Cloning git repository from {self.clone_url} to {self.config_dir}")
+        logging.debug(
+            f"Cloning git repository from {self.clone_url} to {self.config_dir}"
+        )
         if not self.test_github_access():
-            raise AppError("Can't access repository, check token or if private repo", status_code=401)
+            raise AppError(
+                "Can't access repository, check token or if private repo",
+                status_code=401,
+            )
         try:
             self.git_client.clone(self.clone_url, self.config_dir)
         except git.exc.GitCommandError as err:
@@ -58,13 +64,26 @@ class ConfigManager:
             ) from err
 
     def populate_cache(self):
-        self.config_cache = {
-            entry.name: self.load_json_file(os.path.join(entry.path, "config.json"))
-            for entry in os.scandir(self.config_dir)
-            if entry.is_dir()
-            and os.path.isfile(os.path.join(entry.path, "config.json"))
-            and bool(self.load_json_file(os.path.join(entry.path, "config.json")))
-        }
+        """
+        Populate the config cache with the config files from the config directory
+        """
+        self.config_cache = {}
+        for entry in os.scandir(self.config_dir):
+            if entry.is_dir() and os.path.isfile(
+                os.path.join(entry.path, "config.json")
+            ):
+                config = self.load_json_file(os.path.join(entry.path, "config.json"))
+                if config and self.validate_config(config):
+                    self.config_cache[entry.name] = config
+
+    def validate_config(self, config):
+        """
+        Validate the structure of a configuration
+        """
+        for setting, properties in config.items():
+            if not all(key in properties for key in ["value", "enabled", "type"]):
+                return False
+        return True
 
     def load_json_file(self, file_path):
         try:
@@ -95,11 +114,11 @@ class ConfigManager:
                 "Unexpected error occurred", status_code=500, error=err
             ) from err
 
-    def update_config(self, service_name, setting_name, new_value):
+    def update_config(self, service_name, setting_name, property_name, new_value):
         config = self.config_cache.get(service_name)
         if not config or setting_name not in config:
             return False
 
-        config[setting_name] = new_value
+        config[setting_name][property_name] = new_value
         self.config_cache[service_name] = config
         return True

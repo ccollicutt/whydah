@@ -22,9 +22,8 @@ def config_manager():
 
 def test_get_config(config_manager):
     config = config_manager.get_config("service1")
-    assert config["feature1"] == "true"
-    assert config["feature2"] == "true"
-    assert config["feature3"] == "false"
+    assert config["feature1"]["value"] == "true"
+    assert config["feature2"]["value"] == "true"
 
 
 def test_get_missing_config(config_manager):
@@ -44,14 +43,23 @@ def test_refresh_configs(config_manager):
     # modify the config file for superservice
     config_file = os.path.join(config_manager.config_dir, "superservice/config.json")
     with open(config_file, "w") as f:
-        json.dump({"feature1": "false", "feature2": "true", "feature3": "false"}, f)
+        json.dump(
+            {
+                "feature1": {"value": "false", "enabled": "true", "type": "flag"},
+                "feature2": {"value": "true", "enabled": "false", "type": "flag"},
+            },
+            f,
+        )
 
     # refresh configs and check that the changes are reflected in the cache
     assert config_manager.refresh_configs() is True
     config = config_manager.get_config("superservice")
-    assert config["feature1"] == "false"
-    assert config["feature2"] == "true"
-    assert config["feature3"] == "false"
+    assert config["feature1"]["value"] == "false"
+    assert config["feature2"]["value"] == "true"
+    assert config["feature1"]["enabled"] == "true"
+    assert config["feature2"]["enabled"] == "false"
+    assert config["feature1"]["type"] == "flag"
+    assert config["feature2"]["type"] == "flag"
 
 
 def test_refresh_configs_error(config_manager):
@@ -69,46 +77,90 @@ def test_get_all_configs(client):
     assert response.status_code == 200
     assert set(response.json) == {"service1", "superservice"}
 
+
 def test_update_config(config_manager):
     # Check initial values
     config = config_manager.get_config("service1")
-    assert config["feature1"] == "true"
+    assert config["feature1"]["value"] == "true"
 
     # Update a setting
-    success = config_manager.update_config("service1", "feature1", "false")
+    success = config_manager.update_config("service1", "feature1", "value", "false")
     assert success is True
 
     # Check if the setting is updated
     config = config_manager.get_config("service1")
-    assert config["feature1"] == "false"
+    assert config["feature1"]["value"] == "false"
 
     # Test updating non-existent service and setting
-    success = config_manager.update_config("nonexistent_service", "feature1", "false")
+    success = config_manager.update_config(
+        "nonexistent_service", "feature1", "value", "false"
+    )
     assert success is False
 
-    success = config_manager.update_config("service1", "nonexistent_setting", "false")
+    success = config_manager.update_config(
+        "service1", "nonexistent_setting", "value", "false"
+    )
     assert success is False
+
 
 def test_update_config_invalid_value(client):
-    response = client.post("/config/service1/feature1", json={"value": ""})
+    response = client.post("/config/service1/feature1/value", json={"value": ""})
     assert response.status_code == 400
 
-    response = client.post("/config/service1/feature1", json={"value": 123})
+    response = client.post("/config/service1/feature1/value", json={"value": 123})
     assert response.status_code == 400
+
 
 def test_update_config_invalid_length(client):
     long_string = "a" * 1025
-    response = client.post("/config/service1/feature1", json={"value": long_string})
+    response = client.post(
+        "/config/service1/feature1/value", json={"value": long_string}
+    )
     assert response.status_code == 400
+
 
 def test_update_config_missing_value(client):
-    response = client.post("/config/service1/feature1", json={})
+    response = client.post("/config/service1/feature1/value", json={})
     assert response.status_code == 400
 
+
 def test_update_config_non_existent_service(client):
-    response = client.post("/config/nonexistent_service/feature1", json={"value": "newValue"})
+    response = client.post(
+        "/config/nonexistent_service/feature1/value", json={"value": "newValue"}
+    )
     assert response.status_code == 404
 
+
 def test_update_config_non_existent_setting(client):
-    response = client.post("/config/service1/nonexistent_setting", json={"value": "newValue"})
+    response = client.post(
+        "/config/service1/nonexistent_setting/value", json={"value": "newValue"}
+    )
+    assert response.status_code == 404
+
+
+def test_get_non_existing_service_config(client):
+    """
+    Test getting the configuration of a non-existing service
+    """
+    response = client.get("/config/nonexistentservice")
+    assert response.status_code == 404
+
+
+def test_update_non_existing_service_config(client):
+    """
+    Test updating the configuration of a non-existing service
+    """
+    response = client.post(
+        "/config/nonexistentservice/feature1", json={"value": "false"}
+    )
+    assert response.status_code == 404
+
+
+def test_update_non_existing_setting(client):
+    """
+    Test updating a non-existing setting of a service
+    """
+    response = client.post(
+        "/config/service1/nonexistentsetting", json={"value": "false"}
+    )
     assert response.status_code == 404

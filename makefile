@@ -29,7 +29,15 @@ build-image:
 	docker build -t whydah:latest .
 
 run-image:
+	# remove old container if it's there
 	docker rm whydah || true
 	docker run --name whydah \
 	-e GIT_REPO_URL="https://github.com/ccollicutt/python-service-config-examples/" \
 	-p 8000:8000 whydah:latest
+
+run-official-image:
+	# remove old container if it's there
+	docker rm whydah-official || true
+	docker run --name whydah-official \
+	-e GIT_REPO_URL="https://github.com/ccollicutt/python-service-config-examples/" \
+	-p 8000:8000 ghcr.io/ccollicutt/whydah:latest
